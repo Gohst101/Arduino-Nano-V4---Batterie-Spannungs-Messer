@@ -1,0 +1,132 @@
+// Made by LittleDevGhost
+
+// Imports
+#include <Wire.h>
+#include <Arduino.h>
+#include <U8g2lib.h>
+
+// Battery
+#define batteryPin 14
+
+// LEDs
+#define red 2     // Wenn unter 0.9V
+#define yellow 3  // Wenn zwischen 0.9V und 1.2V
+#define green 4   // Wenn über 1.2V
+
+// Variablen
+const char* zustand;
+
+// Display
+U8G2_SSD1306_128X64_NONAME_1_HW_I2C u8g2(U8G2_R0);
+
+// MADE WITH lopaka.app MUCH LOVE!
+static const unsigned char image__6_bits[] = {0xff,0xff,0x03,0xff,0xff,0x03,0xff,0xff,0x03,0xff,0xff,0x03};
+static const unsigned char image_Batterie_bits[] = {0x00,0xff,0x01,0x00,0x00,0xff,0x01,0x00,0x00,0xff,0x01,0x00,0xfc,0xff,0xff,0x00,0xfc,0xff,0xff,0x00,0x03,0x00,0x00,0x03,0x03,0x00,0x00,0x03,0x03,0x00,0x00,0x03,0x03,0x00,0x00,0x03,0x03,0x00,0x00,0x03,0x03,0x00,0x00,0x03,0x03,0x00,0x00,0x03,0x03,0x00,0x00,0x03,0x03,0x00,0x00,0x03,0x03,0x00,0x00,0x03,0x03,0x00,0x00,0x03,0x03,0x00,0x00,0x03,0x03,0x00,0x00,0x03,0x03,0x00,0x00,0x03,0x03,0x00,0x00,0x03,0x03,0x00,0x00,0x03,0x03,0x00,0x00,0x03,0x03,0x00,0x00,0x03,0x03,0x00,0x00,0x03,0x03,0x00,0x00,0x03,0x03,0x00,0x00,0x03,0x03,0x00,0x00,0x03,0x03,0x00,0x00,0x03,0x03,0x00,0x00,0x03,0x03,0x00,0x00,0x03,0x03,0x00,0x00,0x03,0x03,0x00,0x00,0x03,0x03,0x00,0x00,0x03,0x03,0x00,0x00,0x03,0x03,0x00,0x00,0x03,0x03,0x00,0x00,0x03,0x03,0x00,0x00,0x03,0x03,0x00,0x00,0x03,0x03,0x00,0x00,0x03,0x03,0x00,0x00,0x03,0x03,0x00,0x00,0x03,0x03,0x00,0x00,0x03,0x03,0x00,0x00,0x03,0xfc,0xff,0xff,0x00,0xfc,0xff,0xff,0x00};
+
+// FEATURE IDEE:
+// Einstellbare Batterie Volt (V) zum Messen. Beispiel: Ich habe eine 1.5V und 5V Batterie und möchte beide Messen.
+// Dann soll man einstellen können was für eine Volt Batterie man hat.
+
+void setup() {
+  // DEBUGER
+  Serial.begin(115200);
+  
+  // Analog Reference
+  analogReference(DEFAULT);
+
+  // Display
+  u8g2.begin();
+  u8g2.clearBuffer();
+
+  // LEDs
+  pinMode(red, OUTPUT);
+  pinMode(yellow, OUTPUT);
+  pinMode(green, OUTPUT);
+
+  // LEDs Check
+  digitalWrite(red, HIGH);
+  digitalWrite(yellow, HIGH);
+  digitalWrite(green, HIGH);
+  delay(1000);
+  digitalWrite(red, LOW);
+  digitalWrite(yellow, LOW);
+  digitalWrite(green, LOW);
+}
+
+void loop() {
+  // Read Battery Pin
+  int raw = analogRead(batteryPin);
+  // Turn to Voltage
+  float voltage = raw * 5.0 / 1023.0;
+
+  // Zustand ermitteln
+  if (voltage < 0.9) {
+    zustand = "Leer";
+  } else if (voltage < 1.2) {
+    zustand = "Mittel";
+  } else {
+    zustand = "Gut";
+  }
+
+  // Display Voltage
+  u8g2.firstPage();
+  do {
+    drawBildschirm(voltage, zustand);
+  } while (u8g2.nextPage());
+
+  // LEDs Voltage
+  digitalWrite(red, voltage < 0.9);
+  digitalWrite(yellow, voltage >= 0.9 && voltage < 1.2);
+  digitalWrite(green, voltage >= 1.2);
+
+  // DEBUG
+  Serial.print("ADC: ");
+  Serial.print(raw);
+  Serial.print(" | Spannung: ");
+  Serial.println(voltage, 3);
+
+  // Delay
+  delay(500);
+}
+
+void drawBildschirm(float voltage, const char* zustand) {
+  u8g2.setFontMode(1);
+  u8g2.setBitmapMode(1);
+
+  // Batterie
+  u8g2.drawXBM(100, 10, 26, 45, image_Batterie_bits);
+
+  // Batterie Balken
+  int balken = 0;
+  if (voltage >= 1.50) {
+    balken = 6;
+  } else if (voltage >= 1.40) {
+    balken = 5;
+  } else if (voltage >= 1.30) {
+    balken = 4;
+  } else if (voltage >= 1.20) {
+    balken = 3;
+  } else if (voltage >= 1.10) {
+    balken = 2;
+  } else if (voltage >= 0.90) {
+    balken = 1;
+  }
+
+  for (int i = 0; i < balken; i++) {
+    u8g2.drawXBM(104, 47 - (i * 6), 18, 4, image__6_bits);
+  }
+
+  // Zustand
+  u8g2.setFont(u8g2_font_6x13_tr);
+  u8g2.drawStr(3, 25, "Zustand:");
+  u8g2.drawStr(57, 25, zustand);
+
+  // Spannung
+  u8g2.drawStr(3, 12, "Spannung:");
+
+  char spannungText[12];
+  dtostrf(voltage, 4, 2, spannungText);
+
+  u8g2.drawStr(63, 12, spannungText);
+  u8g2.drawStr(94, 12, "V");
+}
